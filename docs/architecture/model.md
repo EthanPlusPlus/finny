@@ -74,7 +74,7 @@ log, which means the numbers cannot go stale relative to the events.
 | uninvested | Σ deposits − Σ buys |
 | room | `min(annual remaining, lifetime remaining)` — the binding constraint |
 | to-max monthly | room ÷ months remaining, rounded **down** |
-| debit charge date | `min(day, days_in_month)` — [[../decisions/004-debit-charge-dates-clamp-to-month-end\|D004]] |
+| debit charge date | `min(day, days_in_month)` — see Decision 004 |
 | already gone | Σ active debits whose charge date is **today or earlier** |
 | still to come | Σ active debits charging after today |
 
