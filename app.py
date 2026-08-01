@@ -81,6 +81,23 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
+
+-- Recurring charges the user has already committed to. Declared once, not
+-- ingested from a feed. The point is not bookkeeping -- it is being able to
+-- answer "what was that?" the moment an unexpected-looking amount leaves the
+-- account, and to see what is still to come this month.
+CREATE TABLE IF NOT EXISTS debits (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT    NOT NULL,
+    amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+    day          INTEGER NOT NULL CHECK (day BETWEEN 1 AND 31),
+    account      TEXT    NOT NULL DEFAULT '',
+    category     TEXT    NOT NULL DEFAULT '',
+    variable     INTEGER NOT NULL DEFAULT 0,
+    active       INTEGER NOT NULL DEFAULT 1,
+    note         TEXT    NOT NULL DEFAULT '',
+    created_at   TEXT    NOT NULL
+);
 """
 
 DEFAULT_SETTINGS = {
@@ -111,6 +128,87 @@ def get_settings(conn: sqlite3.Connection) -> dict:
     for k, v in DEFAULT_SETTINGS.items():
         out.setdefault(k, v)
     return out
+
+
+# ── debit orders ─────────────────────────────────────────────────────────────
+
+def days_in_month(year: int, month: int) -> int:
+    nxt = dt.date(year + (month == 12), (month % 12) + 1, 1)
+    return (nxt - dt.timedelta(days=1)).day
+
+
+def charge_date(day: int, year: int, month: int) -> dt.date:
+    """The date a debit ordered for `day` actually falls in a given month.
+
+    A debit set for the 31st cannot fall on the 31st of a 30-day month, and
+    never in February. Clamping to the last day of the month is what banks do
+    and what the user will see on the statement -- computing 31 February and
+    silently dropping the row would hide a real charge.
+    """
+    return dt.date(year, month, min(day, days_in_month(year, month)))
+
+
+def debit_view(conn: sqlite3.Connection, today: dt.date) -> dict:
+    rows = [dict(r) for r in conn.execute(
+        "SELECT * FROM debits ORDER BY day ASC, name ASC"
+    ).fetchall()]
+
+    active = [d for d in rows if d["active"]]
+    for d in rows:
+        d["charge_date"] = charge_date(d["day"], today.year, today.month).isoformat()
+
+    passed = [d for d in active if d["charge_date"] <= today.isoformat()]
+    upcoming = [d for d in active if d["charge_date"] > today.isoformat()]
+
+    horizon = (today + dt.timedelta(days=7)).isoformat()
+    soon = [d for d in upcoming if d["charge_date"] <= horizon]
+
+    return {
+        "all": rows,
+        "monthly_total_cents": sum(d["amount_cents"] for d in active),
+        "passed_cents": sum(d["amount_cents"] for d in passed),
+        "remaining_cents": sum(d["amount_cents"] for d in upcoming),
+        "count_active": len(active),
+        "next_7_days": soon,
+        "has_variable": any(d["variable"] for d in active),
+    }
+
+
+def parse_debit(payload: dict) -> dict:
+    name = str(payload.get("name", "")).strip()
+    if not name:
+        raise BadRequest("name is required")
+
+    raw = str(payload.get("amount", "")).strip().replace(",", "").replace(" ", "")
+    if not raw:
+        raise BadRequest("amount is required")
+    try:
+        whole, _, frac = raw.partition(".")
+        frac = (frac + "00")[:2]
+        amount_cents = int(whole or "0") * 100 + int(frac)
+    except ValueError:
+        raise BadRequest("amount must be a number")
+    if amount_cents <= 0:
+        raise BadRequest("amount must be greater than zero")
+
+    try:
+        day = int(payload.get("day"))
+    except (TypeError, ValueError):
+        raise BadRequest("day must be a number")
+    if not 1 <= day <= 31:
+        raise BadRequest("day must be between 1 and 31")
+
+    return {
+        "name": name[:80],
+        "amount_cents": amount_cents,
+        "day": day,
+        "account": str(payload.get("account", "")).strip()[:80],
+        "category": str(payload.get("category", "")).strip()[:40],
+        "variable": 1 if payload.get("variable") else 0,
+        "active": 1,
+        "note": str(payload.get("note", "")).strip()[:280],
+        "created_at": dt.datetime.now().isoformat(timespec="seconds"),
+    }
 
 
 # ── domain ───────────────────────────────────────────────────────────────────
@@ -185,6 +283,7 @@ def build_state(conn: sqlite3.Connection, today: dt.date | None = None) -> dict:
         "to_max_monthly_cents": int(room / months_left) if months_left >= 1 else room,
         "settings": s,
         "events": events,
+        "debits": debit_view(conn, today),
     }
 
 
@@ -309,6 +408,25 @@ class Handler(BaseHTTPRequestHandler):
                 self.conn.commit()
                 self._json({"id": cur.lastrowid, "state": build_state(self.conn)}, 201)
 
+            elif route == "/api/debits":
+                d = parse_debit(self._body())
+                cur = self.conn.execute(
+                    """INSERT INTO debits
+                       (name, amount_cents, day, account, category, variable, active, note, created_at)
+                       VALUES (:name, :amount_cents, :day, :account, :category, :variable, :active, :note, :created_at)""",
+                    d,
+                )
+                self.conn.commit()
+                self._json({"id": cur.lastrowid, "state": build_state(self.conn)}, 201)
+
+            elif re.match(r"^/api/debits/\d+/toggle$", route):
+                did = int(route.split("/")[3])
+                self.conn.execute(
+                    "UPDATE debits SET active = 1 - active WHERE id = ?", (did,)
+                )
+                self.conn.commit()
+                self._json({"state": build_state(self.conn)})
+
             elif route == "/api/settings":
                 payload = self._body()
                 allowed = set(DEFAULT_SETTINGS)
@@ -334,11 +452,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         route = urlparse(self.path).path
-        m = re.match(r"^/api/events/(\d+)$", route)
+        m = re.match(r"^/api/(events|debits)/(\d+)$", route)
         if not m:
             self.send_error(404, "Not found")
             return
-        self.conn.execute("DELETE FROM events WHERE id = ?", (int(m.group(1)),))
+        table = "events" if m.group(1) == "events" else "debits"
+        self.conn.execute(f"DELETE FROM {table} WHERE id = ?", (int(m.group(2)),))
         self.conn.commit()
         self._json({"state": build_state(self.conn)})
 

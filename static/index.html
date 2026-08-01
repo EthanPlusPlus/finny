@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#0d1117">
-<title>TFSA — finance tracker</title>
+<title>Finny</title>
 <style>
   :root {
     --bg: #f6f7f9;      --card: #ffffff;   --ink: #14181f;
@@ -26,28 +26,35 @@
     margin: 0; background: var(--bg); color: var(--ink);
     font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     padding: 16px 14px calc(40px + env(safe-area-inset-bottom));
-    max-width: 620px; margin-inline: auto;
-    -webkit-text-size-adjust: 100%;
+    max-width: 620px; margin-inline: auto; -webkit-text-size-adjust: 100%;
   }
   h1 { font-size: 1.05rem; margin: 0; letter-spacing: -0.01em; }
   h2 { font-size: .82rem; margin: 0 0 10px; text-transform: uppercase;
        letter-spacing: .07em; color: var(--muted); font-weight: 600; }
   header { display: flex; justify-content: space-between; align-items: baseline;
-           margin-bottom: 16px; gap: 12px; }
+           margin-bottom: 12px; gap: 12px; }
   .sub { color: var(--muted); font-size: .8rem; }
   .card { background: var(--card); border: 1px solid var(--line);
           border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+
+  nav { display: flex; gap: 6px; margin-bottom: 14px; }
+  nav button { flex: 1; padding: 9px; font: inherit; font-size: .9rem;
+               background: var(--card); color: var(--ink);
+               border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+  nav button[aria-selected="true"] { background: var(--accent); color: #fff;
+                                     border-color: transparent; font-weight: 600; }
 
   .headline { font-size: 2.1rem; font-weight: 650; letter-spacing: -0.03em;
               font-variant-numeric: tabular-nums; line-height: 1.15; }
   .headline.over { color: var(--bad); }
 
   .bar { height: 9px; background: var(--track); border-radius: 99px;
-         overflow: hidden; margin: 9px 0 6px; }
-  .bar > i { display: block; height: 100%; border-radius: 99px;
-             background: var(--accent); transition: width .35s ease; }
+         overflow: hidden; margin: 9px 0 6px; display: flex; }
+  .bar > i { display: block; height: 100%; background: var(--accent);
+             transition: width .35s ease; }
   .bar > i.warn { background: var(--warn); }
   .bar > i.bad  { background: var(--bad); }
+  .bar > i.spent { background: var(--muted); }
   .row { display: flex; justify-content: space-between; gap: 10px;
          font-size: .84rem; color: var(--muted); font-variant-numeric: tabular-nums; }
   .row b { color: var(--ink); font-weight: 600; }
@@ -63,136 +70,340 @@
 
   label { display: block; font-size: .76rem; color: var(--muted);
           margin-bottom: 4px; font-weight: 500; }
-  input, select, button {
-    font: inherit; width: 100%; padding: 10px 12px;
-    border: 1px solid var(--line); border-radius: 10px;
-    background: var(--bg); color: var(--ink);
+  input, select, button { font: inherit; }
+  input, select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line);
+    border-radius: 10px; background: var(--bg); color: var(--ink);
   }
   input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
   .fields .wide { grid-column: 1 / -1; }
-  button.primary { background: var(--accent); color: #fff; border-color: transparent;
+  button.primary { width: 100%; padding: 10px 12px; background: var(--accent);
+                   color: #fff; border: 1px solid transparent; border-radius: 10px;
                    font-weight: 600; cursor: pointer; }
   button.primary:active { opacity: .85; }
   .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
-  .tabs button { background: var(--bg); cursor: pointer; font-size: .86rem; padding: 8px; }
+  .tabs button { flex: 1; padding: 8px; font-size: .86rem; background: var(--bg);
+                 color: var(--ink); border: 1px solid var(--line);
+                 border-radius: 10px; cursor: pointer; }
   .tabs button[aria-selected="true"] { background: var(--accent); color: #fff;
                                        border-color: transparent; font-weight: 600; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: .84rem;
+           color: var(--muted); }
+  .check input { width: auto; }
 
-  ul.events { list-style: none; margin: 0; padding: 0; }
-  ul.events li { display: flex; align-items: center; gap: 10px;
-                 padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .88rem; }
-  ul.events li:last-child { border-bottom: 0; }
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list li { display: flex; align-items: center; gap: 10px; padding: 10px 0;
+               border-bottom: 1px solid var(--line); font-size: .88rem; }
+  ul.list li:last-child { border-bottom: 0; }
+  ul.list li.off { opacity: .45; }
+  ul.list li.hit { background: color-mix(in srgb, var(--accent) 12%, transparent);
+                   border-radius: 8px; padding-inline: 8px; }
   .tag { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
          padding: 2px 7px; border-radius: 99px; font-weight: 700; flex: none; }
   .tag.deposit { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
   .tag.buy { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
-  .ev-main { flex: 1; min-width: 0; }
-  .ev-main small { display: block; color: var(--muted); font-size: .74rem;
-                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .day { flex: none; width: 34px; height: 34px; border-radius: 9px;
+         background: var(--track); display: grid; place-items: center;
+         font-size: .82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .day.done { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+  .main { flex: 1; min-width: 0; }
+  .main small { display: block; color: var(--muted); font-size: .74rem;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .amt { font-variant-numeric: tabular-nums; font-weight: 600; flex: none; }
-  .del { width: auto; padding: 4px 8px; background: transparent; border: 0;
-         color: var(--muted); cursor: pointer; font-size: 1.05rem; line-height: 1; flex: none; }
-  .del:hover { color: var(--bad); }
+  .icon { width: auto; padding: 4px 7px; background: transparent; border: 0;
+          color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; flex: none; }
+  .icon:hover { color: var(--bad); }
   .empty { color: var(--muted); font-size: .86rem; padding: 6px 0; }
   .err { color: var(--bad); font-size: .82rem; min-height: 1.2em; margin-top: 6px; }
   details summary { cursor: pointer; color: var(--muted); font-size: .82rem; }
   details[open] summary { margin-bottom: 12px; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Tax-Free Savings</h1>
-  <span class="sub" id="tyLabel">—</span>
+  <h1 id="viewTitle">Debit orders</h1>
+  <span class="sub" id="ctx">—</span>
 </header>
 
-<div id="flags"></div>
+<nav>
+  <button id="navDebits" aria-selected="true">Debit orders</button>
+  <button id="navTfsa" aria-selected="false">TFSA</button>
+</nav>
 
-<div class="card">
-  <h2>Room left this tax year</h2>
-  <div class="headline" id="roomBig">—</div>
-  <div class="sub" id="roomWhy">—</div>
-</div>
+<!-- ══════════════ DEBIT ORDERS ══════════════ -->
+<section id="viewDebits">
 
-<div class="split">
   <div class="card">
-    <h2>Annual</h2>
-    <div class="bar"><i id="annualBar" style="width:0"></i></div>
-    <div class="row"><span>Used <b id="annualUsed">—</b></span><span id="annualPct">—</span></div>
-    <div class="row"><span>Limit</span><b id="annualLimit">—</b></div>
+    <h2>Committed this month</h2>
+    <div class="headline" id="dTotal">—</div>
+    <div class="bar"><i id="dBarSpent" class="spent" style="width:0"></i><i id="dBarLeft" style="width:0"></i></div>
+    <div class="row"><span>Already gone <b id="dPassed">—</b></span><span>Still to come <b id="dRemaining">—</b></span></div>
   </div>
+
   <div class="card">
-    <h2>Lifetime</h2>
-    <div class="bar"><i id="lifeBar" style="width:0"></i></div>
-    <div class="row"><span>Used <b id="lifeUsed">—</b></span><span id="lifePct">—</span></div>
-    <div class="row"><span>Limit</span><b id="lifeLimit">—</b></div>
+    <h2>What was that charge?</h2>
+    <input type="text" id="lookup" inputmode="decimal" placeholder="Type an amount, e.g. 899">
+    <div id="lookupResult" class="sub" style="margin-top:10px">
+      Enter an amount to check it against your debit orders before panicking.
+    </div>
   </div>
-</div>
 
-<div class="card">
-  <h2>Record</h2>
-  <div class="tabs">
-    <button id="tabDeposit" aria-selected="true">1 · Deposit cash</button>
-    <button id="tabBuy" aria-selected="false">2 · Buy shares</button>
+  <div id="dFlags"></div>
+
+  <div class="card">
+    <h2>Next 7 days</h2>
+    <ul class="list" id="dSoon"><li class="empty">Nothing due in the next week.</li></ul>
   </div>
-  <form id="form">
-    <div class="fields">
-      <div><label for="date">Date</label><input type="date" id="date" required></div>
-      <div><label for="amount">Amount (R)</label>
-           <input type="text" id="amount" inputmode="decimal" placeholder="2500" required></div>
-      <div class="wide" id="providerWrap">
-        <label for="provider">Provider</label>
-        <input type="text" id="provider" placeholder="EasyEquities" autocomplete="off">
-      </div>
-      <div class="wide" id="instrumentWrap" hidden>
-        <label for="instrument">Instrument</label>
-        <input type="text" id="instrument" placeholder="Satrix MSCI World" autocomplete="off">
-      </div>
-      <div class="wide"><label for="note">Note (optional)</label>
-           <input type="text" id="note" autocomplete="off"></div>
-    </div>
-    <button type="submit" class="primary" id="submitBtn">Add deposit</button>
-    <div class="err" id="err"></div>
-  </form>
-</div>
 
-<div class="card">
-  <h2>History</h2>
-  <ul class="events" id="events"><li class="empty">Nothing recorded yet.</li></ul>
-</div>
+  <div class="card">
+    <h2>The register</h2>
+    <ul class="list" id="dList"><li class="empty">No debit orders yet.</li></ul>
+  </div>
 
-<div class="card">
-  <details>
-    <summary>Settings — limits &amp; prior years</summary>
-    <div class="fields" style="margin-top:12px">
-      <div><label for="setAnnual">Annual limit (R)</label>
-           <input type="text" id="setAnnual" inputmode="decimal"></div>
-      <div><label for="setLifetime">Lifetime limit (R)</label>
-           <input type="text" id="setLifetime" inputmode="decimal"></div>
-      <div class="wide"><label for="setPrior">Contributed in earlier tax years (R)</label>
-           <input type="text" id="setPrior" inputmode="decimal"></div>
+  <div class="card">
+    <h2>Add a debit order</h2>
+    <form id="dForm">
+      <div class="fields">
+        <div class="wide"><label for="dName">What is it</label>
+          <input type="text" id="dName" placeholder="Wi-Fi" required autocomplete="off"></div>
+        <div><label for="dAmount">Amount (R)</label>
+          <input type="text" id="dAmount" inputmode="decimal" placeholder="899" required></div>
+        <div><label for="dDay">Day of month</label>
+          <input type="number" id="dDay" min="1" max="31" placeholder="1" required></div>
+        <div><label for="dAccount">Account</label>
+          <input type="text" id="dAccount" placeholder="Cheque" autocomplete="off"></div>
+        <div><label for="dCategory">Category</label>
+          <input type="text" id="dCategory" placeholder="Utilities" autocomplete="off"></div>
+        <div class="wide check">
+          <input type="checkbox" id="dVariable">
+          <label for="dVariable" style="margin:0">Amount varies month to month</label>
+        </div>
+      </div>
+      <button type="submit" class="primary">Add debit order</button>
+      <div class="err" id="dErr"></div>
+    </form>
+  </div>
+</section>
+
+<!-- ══════════════ TFSA ══════════════ -->
+<section id="viewTfsa" hidden>
+
+  <div id="flags"></div>
+
+  <div class="card">
+    <h2>Room left this tax year</h2>
+    <div class="headline" id="roomBig">—</div>
+    <div class="sub" id="roomWhy">—</div>
+  </div>
+
+  <div class="split">
+    <div class="card">
+      <h2>Annual</h2>
+      <div class="bar"><i id="annualBar" style="width:0"></i></div>
+      <div class="row"><span>Used <b id="annualUsed">—</b></span><span id="annualPct">—</span></div>
+      <div class="row"><span>Limit</span><b id="annualLimit">—</b></div>
     </div>
-    <button class="primary" id="saveSettings">Save settings</button>
-    <div class="sub" style="margin-top:8px">
-      Seed “earlier tax years” with everything you contributed before the deposits
-      you list above, so the lifetime figure is right without back-entering years of history.
+    <div class="card">
+      <h2>Lifetime</h2>
+      <div class="bar"><i id="lifeBar" style="width:0"></i></div>
+      <div class="row"><span>Used <b id="lifeUsed">—</b></span><span id="lifePct">—</span></div>
+      <div class="row"><span>Limit</span><b id="lifeLimit">—</b></div>
     </div>
-  </details>
-</div>
+  </div>
+
+  <div class="card">
+    <h2>Record</h2>
+    <div class="tabs">
+      <button id="tabDeposit" aria-selected="true">1 · Deposit cash</button>
+      <button id="tabBuy" aria-selected="false">2 · Buy shares</button>
+    </div>
+    <form id="form">
+      <div class="fields">
+        <div><label for="date">Date</label><input type="date" id="date" required></div>
+        <div><label for="amount">Amount (R)</label>
+             <input type="text" id="amount" inputmode="decimal" placeholder="2500" required></div>
+        <div class="wide" id="providerWrap">
+          <label for="provider">Provider</label>
+          <input type="text" id="provider" placeholder="EasyEquities" autocomplete="off"></div>
+        <div class="wide" id="instrumentWrap" hidden>
+          <label for="instrument">Instrument</label>
+          <input type="text" id="instrument" placeholder="Satrix MSCI World" autocomplete="off"></div>
+        <div class="wide"><label for="note">Note (optional)</label>
+             <input type="text" id="note" autocomplete="off"></div>
+      </div>
+      <button type="submit" class="primary" id="submitBtn">Add deposit</button>
+      <div class="err" id="err"></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>History</h2>
+    <ul class="list" id="events"><li class="empty">Nothing recorded yet.</li></ul>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>Settings — limits &amp; prior years</summary>
+      <div class="fields" style="margin-top:12px">
+        <div><label for="setAnnual">Annual limit (R)</label>
+             <input type="text" id="setAnnual" inputmode="decimal"></div>
+        <div><label for="setLifetime">Lifetime limit (R)</label>
+             <input type="text" id="setLifetime" inputmode="decimal"></div>
+        <div class="wide"><label for="setPrior">Contributed in earlier tax years (R)</label>
+             <input type="text" id="setPrior" inputmode="decimal"></div>
+      </div>
+      <button class="primary" id="saveSettings">Save settings</button>
+      <div class="sub" style="margin-top:8px">
+        Seed “earlier tax years” with everything contributed before the deposits listed
+        above. The caps are per person, not per account — include every provider.
+      </div>
+    </details>
+  </div>
+</section>
 
 <script>
 const $ = id => document.getElementById(id);
-let kind = "deposit";
+let kind = "deposit", state = null;
 
 const fmt = c => "R" + (c / 100).toLocaleString("en-ZA",
   { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/,/g, " ");
 
+// String split, never parseFloat * 100 — Decision 002.
 const toCents = s => {
   const [w, f = ""] = String(s).trim().replace(/[,\s]/g, "").split(".");
   return (parseInt(w || "0", 10) * 100) + parseInt((f + "00").slice(0, 2), 10);
 };
 
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ── view switching ──────────────────────────────────────────────────────────
+function setView(v) {
+  const debits = v === "debits";
+  $("viewDebits").hidden = !debits;
+  $("viewTfsa").hidden = debits;
+  $("navDebits").setAttribute("aria-selected", debits);
+  $("navTfsa").setAttribute("aria-selected", !debits);
+  $("viewTitle").textContent = debits ? "Debit orders" : "Tax-Free Savings";
+  if (state) renderCtx(state);
+  location.hash = v;
+}
+$("navDebits").onclick = () => setView("debits");
+$("navTfsa").onclick = () => setView("tfsa");
+
+function renderCtx(s) {
+  $("ctx").textContent = $("viewDebits").hidden
+    ? `${s.tax_year.label} · ${s.tax_year.days_left} days left`
+    : new Date(s.today + "T00:00:00").toLocaleDateString("en-ZA",
+        { day: "numeric", month: "long" });
+}
+
+// ── debit orders ────────────────────────────────────────────────────────────
+function renderDebits(s) {
+  const d = s.debits;
+  $("dTotal").textContent = fmt(d.monthly_total_cents);
+  $("dPassed").textContent = fmt(d.passed_cents);
+  $("dRemaining").textContent = fmt(d.remaining_cents);
+
+  const total = d.monthly_total_cents || 1;
+  $("dBarSpent").style.width = (100 * d.passed_cents / total) + "%";
+  $("dBarLeft").style.width = (100 * d.remaining_cents / total) + "%";
+
+  const flags = [];
+  if (d.count_active === 0) flags.push(`<div class="flag"><b>The register is empty</b>Add your debit orders and no charge will be a surprise again.</div>`);
+  if (d.has_variable) flags.push(`<div class="flag"><b>Some amounts vary</b>Totals are an estimate where that is the case — treat the figure as approximate.</div>`);
+  $("dFlags").innerHTML = flags.join("");
+
+  const dayCell = (x, done) =>
+    `<span class="day ${done ? "done" : ""}">${new Date(x.charge_date + "T00:00:00").getDate()}</span>`;
+
+  $("dSoon").innerHTML = d.next_7_days.length ? d.next_7_days.map(x => `
+    <li>${dayCell(x, false)}
+      <span class="main">${esc(x.name)}<small>${esc([x.account, x.category].filter(Boolean).join(" · ")) || "&nbsp;"}</small></span>
+      <span class="amt">${fmt(x.amount_cents)}</span>
+    </li>`).join("") : '<li class="empty">Nothing due in the next week.</li>';
+
+  const today = s.today;
+  $("dList").innerHTML = d.all.length ? d.all.map(x => {
+    const done = x.active && x.charge_date <= today;
+    const meta = [x.account, x.category, x.active ? "" : "paused"].filter(Boolean).join(" · ");
+    return `<li class="${x.active ? "" : "off"}" data-id="${x.id}">
+      ${dayCell(x, done)}
+      <span class="main">${esc(x.name)}${x.variable ? " ~" : ""}<small>${esc(meta) || "&nbsp;"}</small></span>
+      <span class="amt">${fmt(x.amount_cents)}</span>
+      <button class="icon toggle" data-id="${x.id}" title="${x.active ? "Pause" : "Resume"}">${x.active ? "⏸" : "▶"}</button>
+      <button class="icon del" data-id="${x.id}" title="Delete">&times;</button>
+    </li>`;
+  }).join("") : '<li class="empty">No debit orders yet.</li>';
+
+  runLookup();
+}
+
+// Answers "what was that?" — the whole reason this slice exists.
+function runLookup() {
+  document.querySelectorAll("#dList li").forEach(li => li.classList.remove("hit"));
+  const raw = $("lookup").value.trim();
+  if (!raw || !state) {
+    $("lookupResult").textContent =
+      "Enter an amount to check it against your debit orders before panicking.";
+    return;
+  }
+  const target = toCents(raw);
+  const all = state.debits.all;
+  const exact = all.filter(x => x.amount_cents === target);
+  // Variable orders drift, so allow 15% (or R5, whichever is larger) either way.
+  const near = all.filter(x => x.amount_cents !== target &&
+    Math.abs(x.amount_cents - target) <= Math.max(target * 0.15, 500));
+
+  [...exact, ...near].forEach(x => {
+    const li = document.querySelector(`#dList li[data-id="${x.id}"]`);
+    if (li) li.classList.add("hit");
+  });
+
+  if (exact.length) {
+    $("lookupResult").innerHTML = `<span style="color:var(--good)"><b>${esc(exact.map(x => x.name).join(", "))}</b> — that is a debit order, day ${exact[0].day} of the month. Nothing to worry about.</span>`;
+  } else if (near.length) {
+    const varies = near.some(x => x.variable);
+    $("lookupResult").innerHTML = `<span style="color:var(--warn)">No exact match. Closest: <b>${esc(near.map(x => x.name + " " + fmt(x.amount_cents)).join(", "))}</b>${varies ? " — and that one varies, so it could well be it." : "."}</span>`;
+  } else {
+    $("lookupResult").innerHTML = `<span style="color:var(--bad)">Nothing in the register near ${fmt(target)}. Worth checking.</span>`;
+  }
+}
+$("lookup").oninput = runLookup;
+
+$("dForm").onsubmit = async ev => {
+  ev.preventDefault();
+  $("dErr").textContent = "";
+  const res = await fetch("/api/debits", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: $("dName").value, amount: $("dAmount").value, day: $("dDay").value,
+      account: $("dAccount").value, category: $("dCategory").value,
+      variable: $("dVariable").checked,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) { $("dErr").textContent = data.error || "Could not save."; return; }
+  $("dName").value = ""; $("dAmount").value = ""; $("dDay").value = "";
+  $("dVariable").checked = false;
+  render(data.state);
+};
+
+$("dList").onclick = async ev => {
+  const t = ev.target.closest(".toggle"), d = ev.target.closest(".del");
+  if (t) {
+    const r = await fetch(`/api/debits/${t.dataset.id}/toggle`, { method: "POST" });
+    render((await r.json()).state);
+  } else if (d && confirm("Delete this debit order?")) {
+    const r = await fetch("/api/debits/" + d.dataset.id, { method: "DELETE" });
+    render((await r.json()).state);
+  }
+};
+
+// ── TFSA ────────────────────────────────────────────────────────────────────
 function setKind(next) {
   kind = next;
   $("tabDeposit").setAttribute("aria-selected", next === "deposit");
@@ -204,9 +415,7 @@ function setKind(next) {
 $("tabDeposit").onclick = () => setKind("deposit");
 $("tabBuy").onclick = () => setKind("buy");
 
-function render(s) {
-  $("tyLabel").textContent = `${s.tax_year.label} · ${s.tax_year.days_left} days left`;
-
+function renderTfsa(s) {
   const over = s.annual.over_cents > 0 || s.lifetime.over_cents > 0;
   $("roomBig").textContent = fmt(s.room_cents);
   $("roomBig").classList.toggle("over", over);
@@ -231,7 +440,7 @@ function render(s) {
   const flags = [];
   if (s.annual.over_cents > 0) flags.push(`<div class="flag bad"><b>Over the annual limit by ${fmt(s.annual.over_cents)}</b>SARS taxes the excess at 40%. Stop depositing this tax year.</div>`);
   if (s.lifetime.over_cents > 0) flags.push(`<div class="flag bad"><b>Over the lifetime limit by ${fmt(s.lifetime.over_cents)}</b>SARS taxes the excess at 40%.</div>`);
-  if (s.uninvested_cents > 0) flags.push(`<div class="flag"><b>${fmt(s.uninvested_cents)} sitting uninvested</b>Deposited but not yet used to buy anything — step 2 of the two-step is outstanding.</div>`);
+  if (s.uninvested_cents > 0) flags.push(`<div class="flag"><b>${fmt(s.uninvested_cents)} sitting uninvested</b>Deposited but not yet used to buy anything — step 2 is outstanding.</div>`);
   if (s.uninvested_cents < 0) flags.push(`<div class="flag"><b>Purchases exceed deposits by ${fmt(-s.uninvested_cents)}</b>A deposit is probably missing from the history.</div>`);
   if (s.tax_year.days_left <= 45 && s.room_cents > 0) flags.push(`<div class="flag"><b>${s.tax_year.days_left} days to use ${fmt(s.room_cents)}</b>Unused annual allowance is forfeited — it does not carry over.</div>`);
   $("flags").innerHTML = flags.join("");
@@ -239,9 +448,9 @@ function render(s) {
   $("events").innerHTML = s.events.length ? s.events.map(e => `
     <li>
       <span class="tag ${e.kind}">${e.kind === "deposit" ? "in" : "buy"}</span>
-      <span class="ev-main">${e.date}<small>${[e.provider, e.instrument, e.note].filter(Boolean).join(" · ") || "&nbsp;"}</small></span>
+      <span class="main">${e.date}<small>${esc([e.provider, e.instrument, e.note].filter(Boolean).join(" · ")) || "&nbsp;"}</small></span>
       <span class="amt">${fmt(e.amount_cents)}</span>
-      <button class="del" data-id="${e.id}" title="Delete">&times;</button>
+      <button class="icon del" data-id="${e.id}" title="Delete">&times;</button>
     </li>`).join("") : '<li class="empty">Nothing recorded yet.</li>';
 
   $("setAnnual").value = (s.annual.limit_cents / 100).toFixed(2);
@@ -251,8 +460,6 @@ function render(s) {
   if (!$("date").value) $("date").value = s.today;
   if (!$("provider").value && s.settings.default_provider) $("provider").value = s.settings.default_provider;
 }
-
-async function load() { render(await (await fetch("/api/state")).json()); }
 
 $("form").onsubmit = async ev => {
   ev.preventDefault();
@@ -273,8 +480,8 @@ $("form").onsubmit = async ev => {
 $("events").onclick = async ev => {
   const btn = ev.target.closest(".del");
   if (!btn || !confirm("Delete this entry?")) return;
-  const res = await fetch("/api/events/" + btn.dataset.id, { method: "DELETE" });
-  render((await res.json()).state);
+  const r = await fetch("/api/events/" + btn.dataset.id, { method: "DELETE" });
+  render((await r.json()).state);
 };
 
 $("saveSettings").onclick = async () => {
@@ -291,7 +498,12 @@ $("saveSettings").onclick = async () => {
   render(data.state);
 };
 
+// ── boot ────────────────────────────────────────────────────────────────────
+function render(s) { state = s; renderDebits(s); renderTfsa(s); renderCtx(s); }
+async function load() { render(await (await fetch("/api/state")).json()); }
+
 setKind("deposit");
+setView(location.hash === "#tfsa" ? "tfsa" : "debits");
 load();
 </script>
 </body>

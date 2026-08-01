@@ -158,5 +158,114 @@ class StateMath(unittest.TestCase):
         self.assertEqual(s["annual"]["remaining_cents"], 4_600_000)
 
 
+class DebitChargeDates(unittest.TestCase):
+    """A debit set for the 31st still has to land somewhere in a 30-day month.
+    Getting this wrong either crashes on 31 February or silently drops a real
+    charge from the month's total."""
+
+    def test_normal_day_is_unchanged(self):
+        self.assertEqual(app.charge_date(15, 2026, 8), dt.date(2026, 8, 15))
+
+    def test_31st_clamps_to_30_in_a_30_day_month(self):
+        self.assertEqual(app.charge_date(31, 2026, 9), dt.date(2026, 9, 30))
+
+    def test_31st_clamps_to_28_in_february(self):
+        self.assertEqual(app.charge_date(31, 2026, 2), dt.date(2026, 2, 28))
+
+    def test_29th_clamps_in_non_leap_february(self):
+        self.assertEqual(app.charge_date(29, 2026, 2), dt.date(2026, 2, 28))
+
+    def test_29th_survives_leap_february(self):
+        self.assertEqual(app.charge_date(29, 2028, 2), dt.date(2028, 2, 29))
+
+    def test_december_rollover_does_not_break(self):
+        self.assertEqual(app.charge_date(31, 2026, 12), dt.date(2026, 12, 31))
+
+    def test_days_in_month(self):
+        self.assertEqual(app.days_in_month(2026, 2), 28)
+        self.assertEqual(app.days_in_month(2028, 2), 29)
+        self.assertEqual(app.days_in_month(2026, 12), 31)
+
+
+class DebitView(unittest.TestCase):
+    def setUp(self):
+        fd, self.path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        self.conn = app.connect(self.path)
+
+    def tearDown(self):
+        self.conn.close()
+        os.unlink(self.path)
+
+    def add(self, name, cents, day, active=1, variable=0):
+        self.conn.execute(
+            """INSERT INTO debits (name, amount_cents, day, account, category,
+                                   variable, active, note, created_at)
+               VALUES (?, ?, ?, '', '', ?, ?, '', '2026-08-01T00:00:00')""",
+            (name, cents, day, variable, active),
+        )
+        self.conn.commit()
+
+    def test_splits_passed_and_remaining_for_the_month(self):
+        self.add("Wi-Fi", 89900, 1)       # already gone by the 15th
+        self.add("Gym", 49900, 25)        # still to come
+        v = app.debit_view(self.conn, dt.date(2026, 8, 15))
+        self.assertEqual(v["passed_cents"], 89900)
+        self.assertEqual(v["remaining_cents"], 49900)
+        self.assertEqual(v["monthly_total_cents"], 139800)
+
+    def test_charge_today_counts_as_passed(self):
+        """The Wi-Fi debit that started this whole thing went off today. It has
+        happened -- it must not show as still to come."""
+        self.add("Wi-Fi", 89900, 15)
+        v = app.debit_view(self.conn, dt.date(2026, 8, 15))
+        self.assertEqual(v["passed_cents"], 89900)
+        self.assertEqual(v["remaining_cents"], 0)
+
+    def test_inactive_debits_excluded_from_totals(self):
+        self.add("Old subscription", 20000, 5, active=0)
+        v = app.debit_view(self.conn, dt.date(2026, 8, 15))
+        self.assertEqual(v["monthly_total_cents"], 0)
+        self.assertEqual(v["count_active"], 0)
+        self.assertEqual(len(v["all"]), 1)  # still listed, just not counted
+
+    def test_next_7_days_window(self):
+        self.add("Soon", 10000, 18)
+        self.add("Later", 10000, 28)
+        v = app.debit_view(self.conn, dt.date(2026, 8, 15))
+        names = [d["name"] for d in v["next_7_days"]]
+        self.assertEqual(names, ["Soon"])
+
+    def test_31st_debit_appears_in_february(self):
+        """Regression: clamping must keep the charge in the month rather than
+        dropping it."""
+        self.add("Rent", 500000, 31)
+        v = app.debit_view(self.conn, dt.date(2026, 2, 10))
+        self.assertEqual(v["monthly_total_cents"], 500000)
+        self.assertEqual(v["all"][0]["charge_date"], "2026-02-28")
+
+
+class DebitValidation(unittest.TestCase):
+    def test_requires_name(self):
+        with self.assertRaises(app.BadRequest):
+            app.parse_debit({"name": "  ", "amount": "100", "day": 1})
+
+    def test_rejects_day_out_of_range(self):
+        for bad in (0, 32, "x"):
+            with self.assertRaises(app.BadRequest):
+                app.parse_debit({"name": "X", "amount": "100", "day": bad})
+
+    def test_rejects_non_positive_amount(self):
+        with self.assertRaises(app.BadRequest):
+            app.parse_debit({"name": "X", "amount": "0", "day": 1})
+
+    def test_accepts_valid(self):
+        d = app.parse_debit(
+            {"name": "Wi-Fi", "amount": "899.00", "day": 1, "variable": True}
+        )
+        self.assertEqual(d["amount_cents"], 89900)
+        self.assertEqual(d["variable"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
