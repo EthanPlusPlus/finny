@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0d1117">
+<title>TFSA — finance tracker</title>
+<style>
+  :root {
+    --bg: #f6f7f9;      --card: #ffffff;   --ink: #14181f;
+    --muted: #626c7a;   --line: #e3e7ec;   --accent: #2f6feb;
+    --good: #1a7f4b;    --warn: #b26a00;   --bad: #c1362c;
+    --track: #e8ecf1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;    --card: #161b22;   --ink: #e6edf3;
+      --muted: #8b949e; --line: #262d36;   --accent: #4f8cff;
+      --good: #3fb950;  --warn: #d29922;   --bad: #f85149;
+      --track: #21262d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 16px 14px calc(40px + env(safe-area-inset-bottom));
+    max-width: 620px; margin-inline: auto;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 { font-size: 1.05rem; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: .82rem; margin: 0 0 10px; text-transform: uppercase;
+       letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+  header { display: flex; justify-content: space-between; align-items: baseline;
+           margin-bottom: 16px; gap: 12px; }
+  .sub { color: var(--muted); font-size: .8rem; }
+  .card { background: var(--card); border: 1px solid var(--line);
+          border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+
+  .headline { font-size: 2.1rem; font-weight: 650; letter-spacing: -0.03em;
+              font-variant-numeric: tabular-nums; line-height: 1.15; }
+  .headline.over { color: var(--bad); }
+
+  .bar { height: 9px; background: var(--track); border-radius: 99px;
+         overflow: hidden; margin: 9px 0 6px; }
+  .bar > i { display: block; height: 100%; border-radius: 99px;
+             background: var(--accent); transition: width .35s ease; }
+  .bar > i.warn { background: var(--warn); }
+  .bar > i.bad  { background: var(--bad); }
+  .row { display: flex; justify-content: space-between; gap: 10px;
+         font-size: .84rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .row b { color: var(--ink); font-weight: 600; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 430px) { .split { grid-template-columns: 1fr; } }
+
+  .flag { border-left: 3px solid var(--warn); padding: 11px 13px;
+          background: color-mix(in srgb, var(--warn) 9%, transparent);
+          border-radius: 0 10px 10px 0; font-size: .89rem; margin-bottom: 12px; }
+  .flag.bad { border-color: var(--bad);
+              background: color-mix(in srgb, var(--bad) 10%, transparent); }
+  .flag b { display: block; margin-bottom: 2px; }
+
+  label { display: block; font-size: .76rem; color: var(--muted);
+          margin-bottom: 4px; font-weight: 500; }
+  input, select, button {
+    font: inherit; width: 100%; padding: 10px 12px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--ink);
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .fields .wide { grid-column: 1 / -1; }
+  button.primary { background: var(--accent); color: #fff; border-color: transparent;
+                   font-weight: 600; cursor: pointer; }
+  button.primary:active { opacity: .85; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button { background: var(--bg); cursor: pointer; font-size: .86rem; padding: 8px; }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: #fff;
+                                       border-color: transparent; font-weight: 600; }
+
+  ul.events { list-style: none; margin: 0; padding: 0; }
+  ul.events li { display: flex; align-items: center; gap: 10px;
+                 padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .88rem; }
+  ul.events li:last-child { border-bottom: 0; }
+  .tag { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
+         padding: 2px 7px; border-radius: 99px; font-weight: 700; flex: none; }
+  .tag.deposit { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+  .tag.buy { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+  .ev-main { flex: 1; min-width: 0; }
+  .ev-main small { display: block; color: var(--muted); font-size: .74rem;
+                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .amt { font-variant-numeric: tabular-nums; font-weight: 600; flex: none; }
+  .del { width: auto; padding: 4px 8px; background: transparent; border: 0;
+         color: var(--muted); cursor: pointer; font-size: 1.05rem; line-height: 1; flex: none; }
+  .del:hover { color: var(--bad); }
+  .empty { color: var(--muted); font-size: .86rem; padding: 6px 0; }
+  .err { color: var(--bad); font-size: .82rem; min-height: 1.2em; margin-top: 6px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: .82rem; }
+  details[open] summary { margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Tax-Free Savings</h1>
+  <span class="sub" id="tyLabel">—</span>
+</header>
+
+<div id="flags"></div>
+
+<div class="card">
+  <h2>Room left this tax year</h2>
+  <div class="headline" id="roomBig">—</div>
+  <div class="sub" id="roomWhy">—</div>
+</div>
+
+<div class="split">
+  <div class="card">
+    <h2>Annual</h2>
+    <div class="bar"><i id="annualBar" style="width:0"></i></div>
+    <div class="row"><span>Used <b id="annualUsed">—</b></span><span id="annualPct">—</span></div>
+    <div class="row"><span>Limit</span><b id="annualLimit">—</b></div>
+  </div>
+  <div class="card">
+    <h2>Lifetime</h2>
+    <div class="bar"><i id="lifeBar" style="width:0"></i></div>
+    <div class="row"><span>Used <b id="lifeUsed">—</b></span><span id="lifePct">—</span></div>
+    <div class="row"><span>Limit</span><b id="lifeLimit">—</b></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Record</h2>
+  <div class="tabs">
+    <button id="tabDeposit" aria-selected="true">1 · Deposit cash</button>
+    <button id="tabBuy" aria-selected="false">2 · Buy shares</button>
+  </div>
+  <form id="form">
+    <div class="fields">
+      <div><label for="date">Date</label><input type="date" id="date" required></div>
+      <div><label for="amount">Amount (R)</label>
+           <input type="text" id="amount" inputmode="decimal" placeholder="2500" required></div>
+      <div class="wide" id="providerWrap">
+        <label for="provider">Provider</label>
+        <input type="text" id="provider" placeholder="EasyEquities" autocomplete="off">
+      </div>
+      <div class="wide" id="instrumentWrap" hidden>
+        <label for="instrument">Instrument</label>
+        <input type="text" id="instrument" placeholder="Satrix MSCI World" autocomplete="off">
+      </div>
+      <div class="wide"><label for="note">Note (optional)</label>
+           <input type="text" id="note" autocomplete="off"></div>
+    </div>
+    <button type="submit" class="primary" id="submitBtn">Add deposit</button>
+    <div class="err" id="err"></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>History</h2>
+  <ul class="events" id="events"><li class="empty">Nothing recorded yet.</li></ul>
+</div>
+
+<div class="card">
+  <details>
+    <summary>Settings — limits &amp; prior years</summary>
+    <div class="fields" style="margin-top:12px">
+      <div><label for="setAnnual">Annual limit (R)</label>
+           <input type="text" id="setAnnual" inputmode="decimal"></div>
+      <div><label for="setLifetime">Lifetime limit (R)</label>
+           <input type="text" id="setLifetime" inputmode="decimal"></div>
+      <div class="wide"><label for="setPrior">Contributed in earlier tax years (R)</label>
+           <input type="text" id="setPrior" inputmode="decimal"></div>
+    </div>
+    <button class="primary" id="saveSettings">Save settings</button>
+    <div class="sub" style="margin-top:8px">
+      Seed “earlier tax years” with everything you contributed before the deposits
+      you list above, so the lifetime figure is right without back-entering years of history.
+    </div>
+  </details>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let kind = "deposit";
+
+const fmt = c => "R" + (c / 100).toLocaleString("en-ZA",
+  { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/,/g, " ");
+
+const toCents = s => {
+  const [w, f = ""] = String(s).trim().replace(/[,\s]/g, "").split(".");
+  return (parseInt(w || "0", 10) * 100) + parseInt((f + "00").slice(0, 2), 10);
+};
+
+function setKind(next) {
+  kind = next;
+  $("tabDeposit").setAttribute("aria-selected", next === "deposit");
+  $("tabBuy").setAttribute("aria-selected", next === "buy");
+  $("instrumentWrap").hidden = next !== "buy";
+  $("providerWrap").hidden = next === "buy";
+  $("submitBtn").textContent = next === "deposit" ? "Add deposit" : "Add purchase";
+}
+$("tabDeposit").onclick = () => setKind("deposit");
+$("tabBuy").onclick = () => setKind("buy");
+
+function render(s) {
+  $("tyLabel").textContent = `${s.tax_year.label} · ${s.tax_year.days_left} days left`;
+
+  const over = s.annual.over_cents > 0 || s.lifetime.over_cents > 0;
+  $("roomBig").textContent = fmt(s.room_cents);
+  $("roomBig").classList.toggle("over", over);
+  $("roomWhy").textContent = s.room_cents === 0
+    ? "No room left — do not deposit further this tax year."
+    : `Capped by your ${s.binding} limit. About ${fmt(s.to_max_monthly_cents)}/month to use it all by ${s.tax_year.end}.`;
+
+  const bar = (el, pct) => {
+    el.style.width = Math.min(pct, 100) + "%";
+    el.className = pct >= 100 ? "bad" : pct >= 85 ? "warn" : "";
+  };
+  $("annualUsed").textContent = fmt(s.annual.used_cents);
+  $("annualLimit").textContent = fmt(s.annual.limit_cents);
+  $("annualPct").textContent = s.annual.pct + "%";
+  bar($("annualBar"), s.annual.pct);
+
+  $("lifeUsed").textContent = fmt(s.lifetime.used_cents);
+  $("lifeLimit").textContent = fmt(s.lifetime.limit_cents);
+  $("lifePct").textContent = s.lifetime.pct + "%";
+  bar($("lifeBar"), s.lifetime.pct);
+
+  const flags = [];
+  if (s.annual.over_cents > 0) flags.push(`<div class="flag bad"><b>Over the annual limit by ${fmt(s.annual.over_cents)}</b>SARS taxes the excess at 40%. Stop depositing this tax year.</div>`);
+  if (s.lifetime.over_cents > 0) flags.push(`<div class="flag bad"><b>Over the lifetime limit by ${fmt(s.lifetime.over_cents)}</b>SARS taxes the excess at 40%.</div>`);
+  if (s.uninvested_cents > 0) flags.push(`<div class="flag"><b>${fmt(s.uninvested_cents)} sitting uninvested</b>Deposited but not yet used to buy anything — step 2 of the two-step is outstanding.</div>`);
+  if (s.uninvested_cents < 0) flags.push(`<div class="flag"><b>Purchases exceed deposits by ${fmt(-s.uninvested_cents)}</b>A deposit is probably missing from the history.</div>`);
+  if (s.tax_year.days_left <= 45 && s.room_cents > 0) flags.push(`<div class="flag"><b>${s.tax_year.days_left} days to use ${fmt(s.room_cents)}</b>Unused annual allowance is forfeited — it does not carry over.</div>`);
+  $("flags").innerHTML = flags.join("");
+
+  $("events").innerHTML = s.events.length ? s.events.map(e => `
+    <li>
+      <span class="tag ${e.kind}">${e.kind === "deposit" ? "in" : "buy"}</span>
+      <span class="ev-main">${e.date}<small>${[e.provider, e.instrument, e.note].filter(Boolean).join(" · ") || "&nbsp;"}</small></span>
+      <span class="amt">${fmt(e.amount_cents)}</span>
+      <button class="del" data-id="${e.id}" title="Delete">&times;</button>
+    </li>`).join("") : '<li class="empty">Nothing recorded yet.</li>';
+
+  $("setAnnual").value = (s.annual.limit_cents / 100).toFixed(2);
+  $("setLifetime").value = (s.lifetime.limit_cents / 100).toFixed(2);
+  $("setPrior").value = (s.lifetime.prior_years_cents / 100).toFixed(2);
+
+  if (!$("date").value) $("date").value = s.today;
+  if (!$("provider").value && s.settings.default_provider) $("provider").value = s.settings.default_provider;
+}
+
+async function load() { render(await (await fetch("/api/state")).json()); }
+
+$("form").onsubmit = async ev => {
+  ev.preventDefault();
+  $("err").textContent = "";
+  const res = await fetch("/api/events", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      kind, date: $("date").value, amount: $("amount").value,
+      provider: $("provider").value, instrument: $("instrument").value, note: $("note").value,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) { $("err").textContent = data.error || "Could not save."; return; }
+  $("amount").value = ""; $("note").value = "";
+  render(data.state);
+};
+
+$("events").onclick = async ev => {
+  const btn = ev.target.closest(".del");
+  if (!btn || !confirm("Delete this entry?")) return;
+  const res = await fetch("/api/events/" + btn.dataset.id, { method: "DELETE" });
+  render((await res.json()).state);
+};
+
+$("saveSettings").onclick = async () => {
+  const res = await fetch("/api/settings", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      annual_limit_cents: toCents($("setAnnual").value),
+      lifetime_limit_cents: toCents($("setLifetime").value),
+      prior_years_contributed_cents: toCents($("setPrior").value),
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || "Could not save settings."); return; }
+  render(data.state);
+};
+
+setKind("deposit");
+load();
+</script>
+</body>
+</html>
