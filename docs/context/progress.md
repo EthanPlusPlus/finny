@@ -6,12 +6,15 @@ _(nothing currently in progress)_
 
 ## Next
 
-- Debit order register + calendar — the most visceral pain in [[../problem|problem.md]]
 - Monthly budget with rollover allocation
 - Credit card payoff tracker (reuses the two-event pattern from Decision 003)
 - Savings goals
 
 ## Done
+
+- **Debit order register (2026-08-01)** — standing commitments declared once,
+  month-end clamping (D004), already-gone vs still-to-come split, next-7-days
+  view, and an amount lookup that answers "what was that charge?" directly.
 
 - **TFSA slice (2026-08-01)** — annual + lifetime cap tracking against the
   2026/2027 limits, the deposit-then-buy two-step, uninvested-cash flag,

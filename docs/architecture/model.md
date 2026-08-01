@@ -43,7 +43,15 @@ One table, one row per event.
 ```
 events(id, kind, date, amount_cents, provider, instrument, note, created_at)
        kind ∈ {deposit, buy}   -- CHECK constraint
+
+debits(id, name, amount_cents, day, account, category, variable, active, note, created_at)
+       day ∈ 1..31             -- CHECK constraint
 ```
+
+`events` is a log of things that happened. `debits` is a register of standing
+commitments — declared once, not appended per occurrence. Recording an
+occurrence row every month would be bookkeeping, which
+[[../problem|problem.md]] rules out; the charge date is derived instead.
 
 `settings` is a key/value table holding the statutory limits and the
 prior-years seed, so a budget change is a settings edit rather than a code
@@ -66,6 +74,9 @@ log, which means the numbers cannot go stale relative to the events.
 | uninvested | Σ deposits − Σ buys |
 | room | `min(annual remaining, lifetime remaining)` — the binding constraint |
 | to-max monthly | room ÷ months remaining, rounded **down** |
+| debit charge date | `min(day, days_in_month)` — [[../decisions/004-debit-charge-dates-clamp-to-month-end\|D004]] |
+| already gone | Σ active debits whose charge date is **today or earlier** |
+| still to come | Σ active debits charging after today |
 
 Over-contribution is reported as a positive `over_cents`, never clamped away —
 the situation that most needs surfacing must not be the one that is hidden.
